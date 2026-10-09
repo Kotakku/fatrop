@@ -27,7 +27,9 @@ namespace
 // segfault. Avoidance: add PS leading slack columns to every supernode panel
 // and store all real data at column offsets >= PS. Then `cj - (bi % PS) >= 1`,
 // keeping every BLASFEO read inside the allocated panel.
-constexpr int kColPad = 4;
+// Sized for the largest D_PS of any BLASFEO target (8: X64_INTEL_SKYLAKE_X);
+// with BLASFEO TARGET=DYNAMIC, D_PS is only known at load time.
+constexpr int kColPad = 8;
 
 std::vector<Index> make_offsets(const std::vector<Index> &sizes)
 {
