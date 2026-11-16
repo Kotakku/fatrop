@@ -58,6 +58,14 @@ extern "C"
         const fatrop_int *nx;
         const fatrop_int *ng;
         const fatrop_int *ng_ineq;
+        /// Lie-group / manifold support (appended for backwards compatibility).
+        /// Tangent dimensions of the controls and states (equal to nu / nx unless the
+        /// interface provides get_nu_tangent / get_nx_tangent).
+        const fatrop_int *nu_tan;
+        const fatrop_int *nx_tan;
+        /// Offsets of the stage blocks [delta_u_k, delta_x_k] in tangent vectors (search
+        /// directions, gradients); ux_offs gives the offsets in primal vectors.
+        const fatrop_int *ux_tan_offs;
     };
 
     struct FatropOcpCStats
@@ -133,6 +141,13 @@ extern "C"
     typedef fatrop_int (*FatropOcpCFullEvalObj)(double, const double *, const double *,
                                                 const double *, double *,
                                                 const struct FatropOcpCDims *, void *);
+
+    /// primal_x_next = retract(primal_x, alpha * delta_x); primal vectors use ux_offs, the
+    /// tangent vector delta_x uses ux_tan_offs.
+    typedef fatrop_int (*FatropOcpCApplyRetraction)(const double *primal_x,
+                                                    const double *delta_x, double alpha,
+                                                    double *primal_x_next,
+                                                    const struct FatropOcpCDims *, void *);
 
     typedef void (*FatropOcpCWrite)(const char *msg, int num);
     typedef void (*FatropOcpCFlush)(void);
@@ -283,6 +298,16 @@ extern "C"
         FatropOcpCFullEvalObj full_eval_obj;
 
         void *user_data;
+
+        /// Lie-group / manifold support (appended for backwards compatibility; set to NULL
+        /// for Euclidean problems). States and controls are stored in their primal
+        /// representation (sizes get_nx / get_nu); search directions, gradients, Jacobian and
+        /// Hessian blocks and the dynamics constraints live in the tangent space (sizes
+        /// get_nx_tangent / get_nu_tangent), and steps are applied with apply_retraction.
+        /// The evaluation callbacks receive tangent-sized matrices; see FatropOcpCDims.
+        FatropOcpCGetDim_k get_nx_tangent;
+        FatropOcpCGetDim_k get_nu_tangent;
+        FatropOcpCApplyRetraction apply_retraction;
     };
 
     /*

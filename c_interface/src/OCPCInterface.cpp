@@ -42,35 +42,41 @@ namespace fatrop
             static ProblemDims<OcpType> get_ocp_dims(const FatropOcpCInterface &ocp)
             {
                 const Index K = ocp.get_horizon_length(ocp.user_data);
-                std::vector<Index> nu(K), nx(K), ng(K), ng_ineq(K);
+                std::vector<Index> nu(K), nx(K), ng(K), ng_ineq(K), nu_tan(K), nx_tan(K);
                 for (Index k = 0; k < K; k++)
                 {
                     nu[k] = ocp.get_nu(k, ocp.user_data);
                     nx[k] = ocp.get_nx(k, ocp.user_data);
                     ng[k] = ocp.get_ng(k, ocp.user_data);
                     ng_ineq[k] = ocp.get_ng_ineq(k, ocp.user_data);
+                    nu_tan[k] = ocp.get_nu_tangent ? ocp.get_nu_tangent(k, ocp.user_data) : nu[k];
+                    nx_tan[k] = ocp.get_nx_tangent ? ocp.get_nx_tangent(k, ocp.user_data) : nx[k];
                 }
-                return ProblemDims<OcpType>(K, nu, nx, ng, ng_ineq);
+                return ProblemDims<OcpType>(K, nu, nx, ng, ng_ineq, nu_tan, nx_tan);
             }
             static NlpDims get_nlp_dims(const ProblemDims<OcpType> &ocp_dims)
             {
                 Index number_of_variables = 0;
+                Index number_of_tangent_variables = 0;
                 Index number_of_eq_constraints = 0;
                 Index number_of_ineq_constraints = 0;
                 for (Index k = 0; k < ocp_dims.K; k++)
                 {
                     number_of_variables +=
                         ocp_dims.number_of_controls[k] + ocp_dims.number_of_states[k];
+                    number_of_tangent_variables += ocp_dims.number_of_tangent_controls[k] +
+                                                   ocp_dims.number_of_tangent_states[k];
                     number_of_eq_constraints += ocp_dims.number_of_eq_constraints[k] +
                                                 ocp_dims.number_of_ineq_constraints[k];
                     if (k != ocp_dims.K - 1)
                     {
-                        number_of_eq_constraints += ocp_dims.number_of_states[k + 1];
+                        // dynamics constraints live in the tangent space of x_{k+1}
+                        number_of_eq_constraints += ocp_dims.number_of_tangent_states[k + 1];
                     }
                     number_of_ineq_constraints += ocp_dims.number_of_ineq_constraints[k];
                 }
-                return NlpDims(number_of_variables, number_of_eq_constraints,
-                               number_of_ineq_constraints);
+                return NlpDims(number_of_variables, number_of_tangent_variables,
+                               number_of_eq_constraints, number_of_ineq_constraints);
             }
         };
 
@@ -252,7 +258,7 @@ namespace fatrop
                 //               grad_x_p + info.offsets_primal_u[k], k);
                 if (ocp->eval_rq)
                     return ocp->eval_rq(&objective_scale, inputs_k, states_k, nullptr, nullptr,
-                                        grad_x_ptr + info.offsets_primal_u[k], k, ocp->user_data);
+                                        grad_x_ptr + info.offsets_tangent_u[k], k, ocp->user_data);
             }
         }
         return 0;
@@ -319,6 +325,19 @@ namespace fatrop
                                                VecRealView &damping)
     {
         damping = 0.0;
+    }
+    void FatropOcpCMapping::apply_retraction(const ProblemInfo<OcpType> &info,
+                                             const VecRealView &primal_x,
+                                             const VecRealView &delta_primal_x,
+                                             const Scalar alpha, VecRealView &primal_x_next)
+    {
+        if (!ocp->apply_retraction)
+        {
+            Nlp<OcpType>::apply_retraction(info, primal_x, delta_primal_x, alpha, primal_x_next);
+            return;
+        }
+        ocp->apply_retraction(primal_x.data(), delta_primal_x.data(), alpha,
+                              primal_x_next.data(), &s, ocp->user_data);
     }
     void FatropOcpCMapping::apply_jacobian_s_transpose(const ProblemInfo<OcpType> &info,
                                                        const VecRealView &multipliers,
@@ -425,6 +444,9 @@ namespace fatrop
                 *std::max_element(algo->info().dims.number_of_ineq_constraints.begin(),
                                   algo->info().dims.number_of_ineq_constraints.end());
             m->s.n_ineqs = algo->info().number_of_g_eq_slack;
+            m->s.nu_tan = algo->info().dims.number_of_tangent_controls.data();
+            m->s.nx_tan = algo->info().dims.number_of_tangent_states.data();
+            m->s.ux_tan_offs = algo->info().offsets_tangent_u.data();
         }
         fatrop_int solve()
         {
