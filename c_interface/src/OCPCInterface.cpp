@@ -605,6 +605,8 @@ namespace fatrop
             return 0;
         if (n == "delta_c_stripe")
             return 0;
+        if (n == "delta_wmax")
+            return 0;
         if (n == "delta_wmin")
             return 0;
         if (n == "kappa_soc")

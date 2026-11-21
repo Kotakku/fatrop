@@ -76,6 +76,7 @@ namespace fatrop
         Scalar kappa_wplusem_ = 100.;
         Scalar kappa_c_ = 0.25;
         Scalar delta_c_stripe_ = 1e-6;
+        Scalar delta_wmax_ = 1e20;
 
     public:
         // Setter methods for options
@@ -86,6 +87,7 @@ namespace fatrop
         void set_kappa_wplusem(const Scalar& value) { kappa_wplusem_ = value; }
         void set_kappa_c(const Scalar& value) { kappa_c_ = value; }
         void set_delta_c_stripe(const Scalar& value) { delta_c_stripe_ = value; }
+        void set_delta_wmax(const Scalar& value) { delta_wmax_ = value; }
 
         // Register options
         void register_options(OptionRegistry& registry);

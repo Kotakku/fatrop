@@ -105,6 +105,14 @@ namespace fatrop
                         (delta_w_last_ == 0.) ? kappa_wplusem_ * delta_w : kappa_wplus_ * delta_w;
                 }
             }
+            // The pivot test of the linear solver is relative, so a positive definite but
+            // ill-conditioned reduced Hessian stays INDEFINITE whatever delta_w is. Give up
+            // instead of growing delta_w to infinity and looping forever.
+            if (update_delta_w && delta_w > delta_wmax_)
+            {
+                PRINT_DIAGNOSTIC << "Primal inertia correction exceeded delta_wmax." << std::endl;
+                return LinsolReturnFlag::UNKNOWN;
+            }
             if (update_delta_c)
             {
                 delta_c = delta_c_stripe_ * pow(mu, kappa_c_);
@@ -133,5 +141,6 @@ namespace fatrop
         registry.register_option("kappa_wplusem", &IpSearchDirImpl::set_kappa_wplusem, this);
         registry.register_option("kappa_c", &IpSearchDirImpl::set_kappa_c, this);
         registry.register_option("delta_c_stripe", &IpSearchDirImpl::set_delta_c_stripe, this);
+        registry.register_option("delta_wmax", &IpSearchDirImpl::set_delta_wmax, this);
     }
 } // namespace fatrop
